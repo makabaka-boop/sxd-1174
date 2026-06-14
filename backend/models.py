@@ -90,6 +90,7 @@ class Wristband(Base):
     issue_records = relationship("IssueRecord", back_populates="wristband", cascade="all, delete-orphan")
     return_records = relationship("ReturnRecord", back_populates="wristband", cascade="all, delete-orphan")
     abnormal_records = relationship("AbnormalRecord", back_populates="wristband", cascade="all, delete-orphan")
+    transfer_records = relationship("WristbandTransfer", back_populates="wristband", cascade="all, delete-orphan")
 
 
 class IssueRecord(Base):
@@ -147,3 +148,36 @@ class AbnormalRecord(Base):
     wristband = relationship("Wristband", back_populates="abnormal_records")
     reporter = relationship("User", foreign_keys=[reporter_id])
     handler = relationship("User", foreign_keys=[handler_id])
+
+
+class WristbandTransfer(Base):
+    __tablename__ = "wristband_transfers"
+    id = Column(Integer, primary_key=True, index=True)
+    transfer_code = Column(String(50), unique=True, index=True, nullable=False)
+    wristband_id = Column(Integer, ForeignKey("wristbands.id"), nullable=False)
+    serial_number = Column(String(100), index=True, nullable=False)
+
+    from_cabinet_id = Column(Integer, ForeignKey("cabinets.id"))
+    from_responsible_person_id = Column(Integer, ForeignKey("responsible_persons.id"))
+    to_cabinet_id = Column(Integer, ForeignKey("cabinets.id"), nullable=False)
+    to_responsible_person_id = Column(Integer, ForeignKey("responsible_persons.id"), nullable=False)
+
+    transfer_reason = Column(String(200))
+    remark = Column(Text)
+    status = Column(String(20), default="待确认", index=True)
+
+    creator_id = Column(Integer, ForeignKey("users.id"))
+    creator_name = Column(String(100))
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    confirmer_id = Column(Integer, ForeignKey("users.id"))
+    confirmer_name = Column(String(100))
+    confirmed_at = Column(DateTime)
+
+    wristband = relationship("Wristband", back_populates="transfer_records")
+    from_cabinet = relationship("Cabinet", foreign_keys=[from_cabinet_id])
+    to_cabinet = relationship("Cabinet", foreign_keys=[to_cabinet_id])
+    from_responsible_person = relationship("ResponsiblePerson", foreign_keys=[from_responsible_person_id])
+    to_responsible_person = relationship("ResponsiblePerson", foreign_keys=[to_responsible_person_id])
+    creator = relationship("User", foreign_keys=[creator_id])
+    confirmer = relationship("User", foreign_keys=[confirmer_id])

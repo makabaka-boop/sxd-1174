@@ -85,3 +85,11 @@ export const abnormalRecordAPI = {
 export const statsAPI = {
   get: () => api.get('/statistics'),
 };
+
+export const transferAPI = {
+  listTransferable: (params) => api.get('/wristbands/transferable', { params }),
+  list: (params) => api.get('/transfers', { params }),
+  create: (data) => api.post('/transfers', data),
+  confirm: (id) => api.post(`/transfers/${id}/confirm`),
+  cancel: (id) => api.post(`/transfers/${id}/cancel`),
+};

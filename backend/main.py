@@ -493,6 +493,45 @@ def handle_abnormal(data: schemas.HandleAbnormalRequest, db: Session = Depends(g
     return {"message": "异常处理完成", "status": wb.status}
 
 
+@app.get("/api/wristbands/transferable", response_model=List[schemas.TransferableWristbandResponse])
+def list_transferable_wristbands(
+    serial_number: Optional[str] = None,
+    batch_id: Optional[int] = None,
+    color: Optional[str] = None,
+    cabinet_id: Optional[int] = None,
+    search: Optional[str] = None,
+    db: Session = Depends(get_db),
+    _=Depends(auth.get_current_user)
+):
+    query = db.query(models.Wristband).join(models.Batch, models.Wristband.batch_id == models.Batch.id, isouter=True)
+    query = query.filter(models.Wristband.status == "待发放")
+
+    if serial_number:
+        query = query.filter(models.Wristband.serial_number.contains(serial_number))
+    if batch_id:
+        query = query.filter(models.Wristband.batch_id == batch_id)
+    if color:
+        query = query.filter(models.Wristband.color == color)
+    if cabinet_id:
+        query = query.filter(models.Wristband.cabinet_id == cabinet_id)
+    if search:
+        query = query.filter(models.Wristband.serial_number.contains(search))
+
+    items = query.order_by(models.Wristband.created_at.desc()).limit(500).all()
+
+    result = []
+    for wb in items:
+        resp = schemas.TransferableWristbandResponse.model_validate(wb)
+        if wb.batch:
+            resp.batch_code = wb.batch.batch_code
+        if wb.cabinet:
+            resp.cabinet_code = wb.cabinet.code
+        if wb.responsible_person:
+            resp.responsible_person_name = wb.responsible_person.name
+        result.append(resp)
+    return result
+
+
 @app.get("/api/wristbands/{serial}", response_model=schemas.WristbandResponse)
 def get_wristband(serial: str, db: Session = Depends(get_db), _=Depends(auth.get_current_user)):
     wb = db.query(models.Wristband).filter(models.Wristband.serial_number == serial).first()
@@ -787,3 +826,176 @@ def get_statistics(db: Session = Depends(get_db), _=Depends(auth.get_current_use
         overdue_by_batch=overdue_by_batch,
         overdue_by_person=overdue_by_person
     )
+
+
+@app.get("/api/transfers")
+def list_transfers(
+    status: Optional[str] = None,
+    serial_number: Optional[str] = None,
+    from_cabinet_id: Optional[int] = None,
+    to_cabinet_id: Optional[int] = None,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=500),
+    db: Session = Depends(get_db),
+    _=Depends(auth.get_current_user)
+):
+    query = db.query(models.WristbandTransfer)
+
+    if status:
+        query = query.filter(models.WristbandTransfer.status == status)
+    if serial_number:
+        query = query.filter(models.WristbandTransfer.serial_number.contains(serial_number))
+    if from_cabinet_id:
+        query = query.filter(models.WristbandTransfer.from_cabinet_id == from_cabinet_id)
+    if to_cabinet_id:
+        query = query.filter(models.WristbandTransfer.to_cabinet_id == to_cabinet_id)
+    if date_from:
+        query = query.filter(models.WristbandTransfer.created_at >= datetime.combine(date_from, datetime.min.time()))
+    if date_to:
+        query = query.filter(models.WristbandTransfer.created_at <= datetime.combine(date_to, datetime.max.time()))
+
+    total = query.count()
+    items = query.order_by(models.WristbandTransfer.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+
+    result = []
+    for t in items:
+        resp = schemas.TransferResponse.model_validate(t)
+        if t.from_cabinet:
+            resp.from_cabinet_code = t.from_cabinet.code
+        if t.from_responsible_person:
+            resp.from_responsible_person_name = t.from_responsible_person.name
+        if t.to_cabinet:
+            resp.to_cabinet_code = t.to_cabinet.code
+        if t.to_responsible_person:
+            resp.to_responsible_person_name = t.to_responsible_person.name
+        if t.wristband:
+            resp.color = t.wristband.color
+            if t.wristband.batch:
+                resp.batch_code = t.wristband.batch.batch_code
+        result.append(resp)
+
+    return {"total": total, "page": page, "page_size": page_size, "items": result}
+
+
+@app.post("/api/transfers")
+def create_transfer(
+    data: schemas.TransferCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    if not data.wristband_ids:
+        raise HTTPException(status_code=400, detail="请选择要调拨的手环")
+    if not data.to_cabinet_id:
+        raise HTTPException(status_code=400, detail="请选择目标柜位")
+    if not data.to_responsible_person_id:
+        raise HTTPException(status_code=400, detail="请选择目标负责人")
+
+    target_cabinet = db.query(models.Cabinet).filter(models.Cabinet.id == data.to_cabinet_id).first()
+    if not target_cabinet:
+        raise HTTPException(status_code=404, detail="目标柜位不存在")
+    target_person = db.query(models.ResponsiblePerson).filter(models.ResponsiblePerson.id == data.to_responsible_person_id).first()
+    if not target_person:
+        raise HTTPException(status_code=404, detail="目标负责人不存在")
+
+    now = datetime.utcnow()
+    date_str = now.strftime("%Y%m%d")
+    prefix = f"TR-{date_str}-"
+    last_transfer = db.query(models.WristbandTransfer).filter(
+        models.WristbandTransfer.transfer_code.like(f"{prefix}%")
+    ).order_by(models.WristbandTransfer.id.desc()).first()
+    seq = 1
+    if last_transfer:
+        try:
+            seq = int(last_transfer.transfer_code.split("-")[-1]) + 1
+        except (ValueError, IndexError):
+            seq = 1
+
+    created_count = 0
+    for wb_id in data.wristband_ids:
+        wb = db.query(models.Wristband).filter(models.Wristband.id == wb_id).first()
+        if not wb:
+            continue
+        if wb.status != "待发放":
+            continue
+        if wb.cabinet_id == data.to_cabinet_id and wb.responsible_person_id == data.to_responsible_person_id:
+            continue
+
+        transfer_code = f"{prefix}{seq:04d}"
+        seq += 1
+
+        transfer = models.WristbandTransfer(
+            transfer_code=transfer_code,
+            wristband_id=wb.id,
+            serial_number=wb.serial_number,
+            from_cabinet_id=wb.cabinet_id,
+            from_responsible_person_id=wb.responsible_person_id,
+            to_cabinet_id=data.to_cabinet_id,
+            to_responsible_person_id=data.to_responsible_person_id,
+            transfer_reason=data.transfer_reason,
+            remark=data.remark,
+            status="待确认",
+            creator_id=current_user.id,
+            creator_name=current_user.full_name or current_user.username,
+            created_at=now
+        )
+        db.add(transfer)
+        created_count += 1
+
+    db.commit()
+    return {"message": f"已创建 {created_count} 条调拨记录", "created": created_count}
+
+
+@app.post("/api/transfers/{transfer_id}/confirm")
+def confirm_transfer(
+    transfer_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    transfer = db.query(models.WristbandTransfer).filter(models.WristbandTransfer.id == transfer_id).first()
+    if not transfer:
+        raise HTTPException(status_code=404, detail="调拨记录不存在")
+    if transfer.status == "已确认":
+        raise HTTPException(status_code=400, detail="该调拨记录已确认")
+    if transfer.status == "已取消":
+        raise HTTPException(status_code=400, detail="该调拨记录已取消")
+
+    wb = db.query(models.Wristband).filter(models.Wristband.id == transfer.wristband_id).first()
+    if not wb:
+        raise HTTPException(status_code=404, detail="关联手环不存在")
+    if wb.status != "待发放":
+        raise HTTPException(status_code=400, detail=f"手环当前状态为「{wb.status}」，无法调拨")
+
+    now = datetime.utcnow()
+    transfer.status = "已确认"
+    transfer.confirmer_id = current_user.id
+    transfer.confirmer_name = current_user.full_name or current_user.username
+    transfer.confirmed_at = now
+
+    wb.cabinet_id = transfer.to_cabinet_id
+    wb.responsible_person_id = transfer.to_responsible_person_id
+
+    db.commit()
+    return {"message": "调拨确认成功", "status": transfer.status}
+
+
+@app.post("/api/transfers/{transfer_id}/cancel")
+def cancel_transfer(
+    transfer_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    transfer = db.query(models.WristbandTransfer).filter(models.WristbandTransfer.id == transfer_id).first()
+    if not transfer:
+        raise HTTPException(status_code=404, detail="调拨记录不存在")
+    if transfer.status != "待确认":
+        raise HTTPException(status_code=400, detail=f"当前状态为「{transfer.status}」，无法取消")
+
+    transfer.status = "已取消"
+    transfer.confirmer_id = current_user.id
+    transfer.confirmer_name = current_user.full_name or current_user.username
+    transfer.confirmed_at = datetime.utcnow()
+
+    db.commit()
+    return {"message": "调拨已取消", "status": transfer.status}

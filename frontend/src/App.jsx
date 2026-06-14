@@ -7,6 +7,7 @@ import Batches from './pages/Batches.jsx';
 import Issue from './pages/Issue.jsx';
 import ReturnConfirm from './pages/ReturnConfirm.jsx';
 import Abnormal from './pages/Abnormal.jsx';
+import Transfer from './pages/Transfer.jsx';
 import Statistics from './pages/Statistics.jsx';
 import Layout from './components/Layout.jsx';
 
@@ -37,6 +38,7 @@ export default function App() {
           <Route path="issue" element={<Issue />} />
           <Route path="return" element={<ReturnConfirm />} />
           <Route path="abnormal" element={<Abnormal />} />
+          <Route path="transfer" element={<Transfer />} />
           <Route path="statistics" element={<Statistics />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

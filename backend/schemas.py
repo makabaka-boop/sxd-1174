@@ -380,3 +380,66 @@ class PaginatedResponse(BaseModel):
     page: int
     page_size: int
     items: List
+
+
+class TransferCreateRequest(BaseModel):
+    wristband_ids: List[int]
+    to_cabinet_id: int
+    to_responsible_person_id: int
+    transfer_reason: Optional[str] = None
+    remark: Optional[str] = None
+
+
+class TransferConfirmRequest(BaseModel):
+    transfer_id: int
+
+
+class TransferResponse(BaseModel):
+    id: int
+    transfer_code: str
+    wristband_id: int
+    serial_number: str
+    from_cabinet_id: Optional[int] = None
+    from_responsible_person_id: Optional[int] = None
+    to_cabinet_id: int
+    to_responsible_person_id: int
+    transfer_reason: Optional[str] = None
+    remark: Optional[str] = None
+    status: str
+    creator_name: Optional[str] = None
+    created_at: datetime
+    confirmer_name: Optional[str] = None
+    confirmed_at: Optional[datetime] = None
+
+    from_cabinet_code: Optional[str] = None
+    from_responsible_person_name: Optional[str] = None
+    to_cabinet_code: Optional[str] = None
+    to_responsible_person_name: Optional[str] = None
+    batch_code: Optional[str] = None
+    color: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class TransferableWristbandFilter(BaseModel):
+    serial_number: Optional[str] = None
+    batch_id: Optional[int] = None
+    color: Optional[str] = None
+    cabinet_id: Optional[int] = None
+
+
+class TransferableWristbandResponse(BaseModel):
+    id: int
+    serial_number: str
+    batch_id: int
+    batch_code: Optional[str] = None
+    color: str
+    cabinet_id: Optional[int] = None
+    cabinet_code: Optional[str] = None
+    responsible_person_id: Optional[int] = None
+    responsible_person_name: Optional[str] = None
+    status: str
+
+    class Config:
+        from_attributes = True

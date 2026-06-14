@@ -7,6 +7,7 @@ const navItems = [
   { path: '/issue', label: '发放登记', icon: '🎫' },
   { path: '/return', label: '回收确认', icon: '♻️' },
   { path: '/abnormal', label: '异常处理', icon: '⚠️' },
+  { path: '/transfer', label: '调拨管理', icon: '🔄' },
   { path: '/statistics', label: '统计概览', icon: '📈' },
 ];
 
