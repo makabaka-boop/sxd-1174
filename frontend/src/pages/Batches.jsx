@@ -216,7 +216,7 @@ export default function Batches() {
 
       {activeTab === 'wristband' && (
         <>
-          <div className="filter-bar">
+          <div className="filter-bar" style={{ gridTemplateColumns: 'repeat(8, 1fr)' }}>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label>批次</label>
               <select value={filters.batch_id} onChange={e => setFilters({ ...filters, batch_id: e.target.value })}>
@@ -247,10 +247,18 @@ export default function Batches() {
               </select>
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
+              <label>开始日期</label>
+              <input type="date" value={filters.date_from} onChange={e => setFilters({ ...filters, date_from: e.target.value })} />
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label>结束日期</label>
+              <input type="date" value={filters.date_to} onChange={e => setFilters({ ...filters, date_to: e.target.value })} />
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
               <label>搜索</label>
               <input placeholder="编号/姓名/电话" value={filters.search} onChange={e => setFilters({ ...filters, search: e.target.value })} />
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, alignSelf: 'center' }}>
                 <input type="checkbox" style={{ width: 'auto' }} checked={filters.abnormal_only} onChange={e => setFilters({ ...filters, abnormal_only: e.target.checked })} />
                 仅异常

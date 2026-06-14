@@ -66,6 +66,10 @@ export default function Abnormal() {
       showToast('请输入异常描述', 'warning');
       return;
     }
+    if (reportForm.abnormal_type === '遗失' && !reportForm.missing_explanation?.trim()) {
+      showToast('遗失类型必须填写缺失说明', 'warning');
+      return;
+    }
     try {
       const data = { ...reportForm };
       Object.keys(data).forEach(k => { if (data[k] === '') delete data[k]; });

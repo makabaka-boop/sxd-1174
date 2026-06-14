@@ -385,6 +385,20 @@ def confirm_return(data: schemas.ConfirmReturnRequest, db: Session = Depends(get
         wb.status = "异常观察"
         wb.abnormal_flag = True
         wb.abnormal_type = f"回收{record.condition}"
+        abnormal_desc = f"回收时确认手环{record.condition}"
+        if record.remark:
+            abnormal_desc += f"。备注：{record.remark}"
+        abnormal_record = models.AbnormalRecord(
+            wristband_id=wb.id,
+            abnormal_type=f"回收{record.condition}",
+            description=abnormal_desc,
+            missing_explanation=record.remark if record.condition == "遗失" else None,
+            reporter_id=current_user.id,
+            reporter_name=current_user.full_name or current_user.username,
+            reported_at=now,
+            handled=False
+        )
+        db.add(abnormal_record)
     else:
         wb.status = "已回收"
         wb.abnormal_flag = False
@@ -398,6 +412,9 @@ def report_abnormal(data: schemas.ReportAbnormalRequest, db: Session = Depends(g
     wb = db.query(models.Wristband).filter(models.Wristband.serial_number == data.serial_number).first()
     if not wb:
         raise HTTPException(status_code=404, detail="手环不存在")
+
+    if data.abnormal_type == "遗失" and (not data.missing_explanation or not data.missing_explanation.strip()):
+        raise HTTPException(status_code=400, detail="遗失类型必须填写缺失说明")
 
     now = datetime.utcnow()
     wb.status = "异常观察"
@@ -558,9 +575,7 @@ def get_statistics(db: Session = Depends(get_db), _=Depends(auth.get_current_use
     issued_query = db.query(models.Wristband).filter(models.Wristband.status == "已发放")
     issued_count = issued_query.count()
     returned_timely = 0
-    total_returned = db.query(models.Wristband).filter(
-        models.Wristband.status.in_(["已回收", "待回收确认"])
-    ).count()
+    total_returned_in_period = 0
     recovery_trend = []
     for i in range(6, -1, -1):
         d = today - timedelta(days=i)
@@ -583,6 +598,7 @@ def get_statistics(db: Session = Depends(get_db), _=Depends(auth.get_current_use
             )
         ).scalar() or 0
         returned_timely += timely
+        total_returned_in_period += day_returned
         recovery_trend.append(schemas.RecoveryRateItem(
             date=str(d),
             issued_count=day_issued,
@@ -590,7 +606,7 @@ def get_statistics(db: Session = Depends(get_db), _=Depends(auth.get_current_use
             timely_count=timely,
             timely_rate=round(timely / day_returned * 100, 2) if day_returned > 0 else 0
         ))
-    recovery_timely_rate = round(returned_timely / total_returned * 100, 2) if total_returned > 0 else 0
+    recovery_timely_rate = round(returned_timely / total_returned_in_period * 100, 2) if total_returned_in_period > 0 else 0
 
     rp_rows = db.query(
         models.ResponsiblePerson.id,
@@ -630,7 +646,12 @@ def get_statistics(db: Session = Depends(get_db), _=Depends(auth.get_current_use
         func.group_concat(models.Wristband.serial_number)
     ).filter(
         and_(models.Wristband.recipient_name.isnot(None), models.Wristband.abnormal_flag == True,
-             or_(models.Wristband.abnormal_type == "遗失", models.Wristband.abnormal_type.contains("缺失")))
+             or_(
+                 models.Wristband.abnormal_type == "遗失",
+                 models.Wristband.abnormal_type.contains("缺失"),
+                 models.Wristband.abnormal_type.contains("遗失"),
+                 models.Wristband.abnormal_type.contains("损坏"),
+             ))
     ).group_by(models.Wristband.recipient_name).having(func.count(models.Wristband.id) >= 2
     ).order_by(func.count(models.Wristband.id).desc()).limit(10).all()
     high_frequency_missing = [schemas.HighFrequencyMissingItem(
