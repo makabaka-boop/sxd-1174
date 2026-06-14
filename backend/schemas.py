@@ -211,6 +211,8 @@ class WristbandResponse(BaseModel):
     batch_name: Optional[str] = None
     cabinet_code: Optional[str] = None
     responsible_person_name: Optional[str] = None
+    is_overdue: bool = False
+    days_overdue: int = 0
 
     class Config:
         from_attributes = True
@@ -277,6 +279,7 @@ class WristbandFilter(BaseModel):
     date_from: Optional[date] = None
     date_to: Optional[date] = None
     abnormal_only: Optional[bool] = None
+    overdue_only: Optional[bool] = None
     search: Optional[str] = None
 
 
@@ -330,6 +333,24 @@ class IncompleteAbnormalItem(BaseModel):
     hours_pending: float
 
 
+class OverdueByBatchItem(BaseModel):
+    batch_id: int
+    batch_code: str
+    batch_name: Optional[str] = None
+    total_issued: int
+    overdue_count: int
+    overdue_rate: float
+
+
+class OverdueByPersonItem(BaseModel):
+    person_id: int
+    person_name: str
+    department: Optional[str] = None
+    total_issued: int
+    overdue_count: int
+    overdue_rate: float
+
+
 class StatisticsResponse(BaseModel):
     total_batches: int
     total_wristbands: int
@@ -339,6 +360,7 @@ class StatisticsResponse(BaseModel):
     returned: int
     abnormal_observation: int
     disabled: int
+    overdue_count: int
     color_distribution: List[ColorDistributionItem]
     recovery_timely_rate: float
     recovery_rate_trend: List[RecoveryRateItem]
@@ -347,6 +369,8 @@ class StatisticsResponse(BaseModel):
     high_frequency_missing: List[HighFrequencyMissingItem]
     recovery_lag: List[RecoveryLagItem]
     incomplete_abnormal: List[IncompleteAbnormalItem]
+    overdue_by_batch: List[OverdueByBatchItem]
+    overdue_by_person: List[OverdueByPersonItem]
 
 
 class PaginatedResponse(BaseModel):

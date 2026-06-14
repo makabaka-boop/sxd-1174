@@ -82,7 +82,6 @@ export const returnRecordAPI = {
 export const abnormalRecordAPI = {
   list: (params) => api.get('/abnormal-records', { params }),
 };
-
 export const statsAPI = {
   get: () => api.get('/statistics'),
 };

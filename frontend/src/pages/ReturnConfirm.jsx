@@ -10,6 +10,7 @@ export default function ReturnConfirm() {
   const [checking, setChecking] = useState(false);
   const serialRef = useRef(null);
   const [pending, setPending] = useState([]);
+  const [pendingOverdueMap, setPendingOverdueMap] = useState({});
 
   const [form, setForm] = useState({
     serial_number: '',
@@ -26,6 +27,18 @@ export default function ReturnConfirm() {
     try {
       const res = await returnRecordAPI.list({ confirmed: false });
       setPending(res.data);
+      const overdueMap = {};
+      for (const r of res.data) {
+        if (r.serial_number) {
+          try {
+            const wbRes = await wristbandAPI.get(r.serial_number);
+            if (wbRes.data.is_overdue) {
+              overdueMap[r.id] = wbRes.data.days_overdue;
+            }
+          } catch (e) {}
+        }
+      }
+      setPendingOverdueMap(overdueMap);
     } catch (e) { console.error(e); }
   };
 
@@ -146,7 +159,12 @@ export default function ReturnConfirm() {
                       <br />
                       发放时间：{wristbandInfo.issued_at ? dayjs(wristbandInfo.issued_at).format('YYYY-MM-DD HH:mm') : '-'}
                       &nbsp;&nbsp;预计归还：{wristbandInfo.expected_return_date || '-'}
-                      {wristbandInfo.expected_return_date && dayjs(wristbandInfo.expected_return_date).isBefore(dayjs(), 'day') && (
+                      {wristbandInfo.is_overdue && (
+                        <span className={`badge ${wristbandInfo.days_overdue > 7 ? 'badge-red' : 'badge-orange'}`} style={{ marginLeft: 6 }}>
+                          逾期{wristbandInfo.days_overdue}天
+                        </span>
+                      )}
+                      {!wristbandInfo.is_overdue && wristbandInfo.expected_return_date && dayjs(wristbandInfo.expected_return_date).isBefore(dayjs(), 'day') && (
                         <span className="badge badge-red" style={{ marginLeft: 6 }}>逾期</span>
                       )}
                     </div>
@@ -250,6 +268,7 @@ export default function ReturnConfirm() {
                     <th>回收人</th>
                     <th>回收地点</th>
                     <th>状况</th>
+                    <th>逾期状态</th>
                     <th>回收时间</th>
                     <th>备注</th>
                     <th>操作</th>
@@ -257,11 +276,20 @@ export default function ReturnConfirm() {
                 </thead>
                 <tbody>
                   {pending.map(r => (
-                    <tr key={r.id}>
+                    <tr key={r.id} style={pendingOverdueMap[r.id] ? { background: '#fff7ed' } : {}}>
                       <td style={{ fontFamily: 'monospace', fontWeight: 500 }}>{r.serial_number}</td>
                       <td>{r.return_person_name || '-'}</td>
                       <td>{r.return_location || '-'}</td>
                       <td>{getConditionBadge(r.condition)}</td>
+                      <td>
+                        {pendingOverdueMap[r.id] ? (
+                          <span className={`badge ${pendingOverdueMap[r.id] > 7 ? 'badge-red' : 'badge-orange'}`}>
+                            逾期{pendingOverdueMap[r.id]}天
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--text-light)', fontSize: 12 }}>-</span>
+                        )}
+                      </td>
                       <td>{dayjs(r.returned_at).format('YYYY-MM-DD HH:mm')}</td>
                       <td style={{ fontSize: 12, color: 'var(--text-light)' }}>{r.remark || '-'}</td>
                       <td>

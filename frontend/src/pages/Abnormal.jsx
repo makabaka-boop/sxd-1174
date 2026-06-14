@@ -18,6 +18,7 @@ export default function Abnormal() {
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState('report');
   const [filterHandled, setFilterHandled] = useState('');
+  const [filterOverdue, setFilterOverdue] = useState(false);
   const [records, setRecords] = useState([]);
   const [wristbandInfo, setWristbandInfo] = useState(null);
   const [checking, setChecking] = useState(false);
@@ -29,12 +30,13 @@ export default function Abnormal() {
 
   useEffect(() => {
     if (activeTab === 'list') loadRecords();
-  }, [activeTab, filterHandled]);
+  }, [activeTab, filterHandled, filterOverdue]);
 
   const loadRecords = async () => {
     try {
       const params = {};
       if (filterHandled !== '') params.handled = filterHandled === 'true';
+      if (filterOverdue) params.overdue_only = true;
       const res = await abnormalRecordAPI.list(params);
       setRecords(res.data);
     } catch (e) { console.error(e); }
@@ -187,11 +189,17 @@ export default function Abnormal() {
                       批次：<strong>{wristbandInfo.batch_code}</strong><br />
                       当前状态：{getStatusBadge(wristbandInfo.status)}
                       {wristbandInfo.abnormal_flag && <span className="badge badge-red" style={{ marginLeft: 6 }}>已标记异常</span>}
+                      {wristbandInfo.is_overdue && (
+                        <span className={`badge ${wristbandInfo.days_overdue > 7 ? 'badge-red' : 'badge-orange'}`} style={{ marginLeft: 6 }}>
+                          逾期{wristbandInfo.days_overdue}天
+                        </span>
+                      )}
                       <br />
                       领取人：{wristbandInfo.recipient_name || '未知'}
                       {wristbandInfo.recipient_phone && ` (${wristbandInfo.recipient_phone})`}
                       <br />
                       发放时间：{wristbandInfo.issued_at ? dayjs(wristbandInfo.issued_at).format('YYYY-MM-DD HH:mm') : '-'}
+                      &nbsp;&nbsp;预计归还：{wristbandInfo.expected_return_date || '-'}
                     </div>
                   </div>
                 )}
@@ -318,7 +326,13 @@ export default function Abnormal() {
                 <option value="true">已处理</option>
               </select>
             </div>
-            <button className="btn btn-secondary" onClick={() => setFilterHandled('')}>重置</button>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, whiteSpace: 'nowrap', marginBottom: 16 }}>
+                <input type="checkbox" style={{ width: 'auto' }} checked={filterOverdue} onChange={e => setFilterOverdue(e.target.checked)} />
+                仅逾期手环
+              </label>
+              <button className="btn btn-secondary" onClick={() => { setFilterHandled(''); setFilterOverdue(false); }}>重置</button>
+            </div>
           </div>
           <div className="card">
             {records.length === 0 ? (

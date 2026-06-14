@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { statsAPI } from '../api.js';
+import dayjs from 'dayjs';
 
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
@@ -25,7 +26,7 @@ export default function Dashboard() {
     { label: '待发放', value: stats.pending_issue, color: 'info', icon: '📦', to: '/batches' },
     { label: '已发放', value: stats.issued, color: '', icon: '✅', to: '/issue' },
     { label: '待回收确认', value: stats.pending_return_confirm, color: 'warning', icon: '⏳', to: '/return' },
-    { label: '已回收', value: stats.returned, color: 'success', icon: '♻️', to: '/statistics' },
+    { label: '逾期未归还', value: stats.overdue_count, color: 'orange', icon: '🔴', to: '/statistics', sub: stats.overdue_count > 0 ? '请及时跟进' : '' },
     { label: '异常观察', value: stats.abnormal_observation, color: 'danger', icon: '⚠️', to: '/abnormal' },
   ];
 
@@ -69,6 +70,43 @@ export default function Dashboard() {
             ))}
             {stats.pending_items.count === 0 && <div className="empty"><div className="empty-icon">🎉</div>暂无待处理事项</div>}
           </div>
+        </div>
+
+        <div className="card">
+          <div className="card-title">
+            <span>🔴 逾期未归还提醒</span>
+            {stats.overdue_count > 0 && <span className="badge badge-orange">{stats.overdue_count} 个逾期</span>}
+          </div>
+          {stats.overdue_count === 0 ? (
+            <div className="empty"><div className="empty-icon">🎉</div>暂无逾期手环，回收情况良好</div>
+          ) : (
+            <div className="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>手环编号</th>
+                    <th>领取人</th>
+                    <th>应归还日期</th>
+                    <th style={{ textAlign: 'center' }}>逾期天数</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stats.recovery_lag.slice(0, 5).map((r, i) => (
+                    <tr key={i}>
+                      <td style={{ fontFamily: 'monospace', fontWeight: 500 }}>{r.serial_number}</td>
+                      <td>{r.recipient_name || '未知'}</td>
+                      <td>{r.expected_return_date}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className={`badge ${r.days_overdue > 7 ? 'badge-red' : 'badge-orange'}`}>
+                          {r.days_overdue} 天
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         <div className="card">

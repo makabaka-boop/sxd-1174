@@ -16,7 +16,7 @@ export default function Batches() {
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState({
     batch_id: '', color: '', responsible_person_id: '', status: '',
-    date_from: '', date_to: '', abnormal_only: false, search: ''
+    date_from: '', date_to: '', abnormal_only: false, overdue_only: false, search: ''
   });
 
   const { showToast } = useToast();
@@ -216,7 +216,7 @@ export default function Batches() {
 
       {activeTab === 'wristband' && (
         <>
-          <div className="filter-bar" style={{ gridTemplateColumns: 'repeat(8, 1fr)' }}>
+          <div className="filter-bar" style={{ gridTemplateColumns: 'repeat(9, 1fr)' }}>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label>批次</label>
               <select value={filters.batch_id} onChange={e => setFilters({ ...filters, batch_id: e.target.value })}>
@@ -259,11 +259,17 @@ export default function Batches() {
               <input placeholder="编号/姓名/电话" value={filters.search} onChange={e => setFilters({ ...filters, search: e.target.value })} />
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, alignSelf: 'center' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, alignSelf: 'center', whiteSpace: 'nowrap' }}>
                 <input type="checkbox" style={{ width: 'auto' }} checked={filters.abnormal_only} onChange={e => setFilters({ ...filters, abnormal_only: e.target.checked })} />
                 仅异常
               </label>
-              <button className="btn btn-secondary" onClick={() => { setFilters({ batch_id: '', color: '', responsible_person_id: '', status: '', date_from: '', date_to: '', abnormal_only: false, search: '' }); setPage(1); }}>重置</button>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, alignSelf: 'center', whiteSpace: 'nowrap' }}>
+                <input type="checkbox" style={{ width: 'auto' }} checked={filters.overdue_only} onChange={e => setFilters({ ...filters, overdue_only: e.target.checked })} />
+                仅逾期
+              </label>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+              <button className="btn btn-secondary" onClick={() => { setFilters({ batch_id: '', color: '', responsible_person_id: '', status: '', date_from: '', date_to: '', abnormal_only: false, overdue_only: false, search: '' }); setPage(1); }}>重置</button>
             </div>
           </div>
 
@@ -276,16 +282,17 @@ export default function Batches() {
                     <th>批次</th>
                     <th>颜色</th>
                     <th>状态</th>
+                    <th>逾期</th>
                     <th>领取人</th>
                     <th>领取人电话</th>
-                    <th>柜位</th>
                     <th>责任人</th>
                     <th>发放时间</th>
+                    <th>预计归还</th>
                   </tr>
                 </thead>
                 <tbody>
                   {wristbands.map(w => (
-                    <tr key={w.id}>
+                    <tr key={w.id} style={w.is_overdue ? { background: '#fff7ed' } : {}}>
                       <td style={{ fontFamily: 'monospace' }}>{w.serial_number}</td>
                       <td>{w.batch_code || '-'}</td>
                       <td>
@@ -295,15 +302,24 @@ export default function Batches() {
                         </span>
                       </td>
                       <td>{getStatusBadge(w.status)}</td>
+                      <td>
+                        {w.is_overdue ? (
+                          <span className={`badge ${w.days_overdue > 7 ? 'badge-red' : 'badge-orange'}`}>
+                            逾期{w.days_overdue}天
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--text-light)', fontSize: 12 }}>-</span>
+                        )}
+                      </td>
                       <td>{w.recipient_name || '-'}</td>
                       <td>{w.recipient_phone || '-'}</td>
-                      <td>{w.cabinet_code || '-'}</td>
                       <td>{w.responsible_person_name || '-'}</td>
                       <td>{w.issued_at ? dayjs(w.issued_at).format('MM-DD HH:mm') : '-'}</td>
+                      <td>{w.expected_return_date || '-'}</td>
                     </tr>
                   ))}
                   {wristbands.length === 0 && (
-                    <tr><td colSpan="9" className="empty"><div className="empty-icon">🎟️</div>暂无手环数据</td></tr>
+                    <tr><td colSpan="10" className="empty"><div className="empty-icon">🎟️</div>暂无手环数据</td></tr>
                   )}
                 </tbody>
               </table>

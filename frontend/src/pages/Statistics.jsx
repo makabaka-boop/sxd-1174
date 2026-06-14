@@ -87,10 +87,10 @@ export default function Statistics() {
           <div className="value">{stats.returned}</div>
           <div className="sub">及时率 {stats.recovery_timely_rate}%</div>
         </div>
-        <div className="stat-card warning">
-          <div className="label">⏳ 待回收确认</div>
-          <div className="value">{stats.pending_return_confirm}</div>
-          <div className="sub">请尽快处理</div>
+        <div className="stat-card orange">
+          <div className="label">🔴 逾期未归还</div>
+          <div className="value">{stats.overdue_count}</div>
+          <div className="sub">{stats.overdue_count > 0 ? '请及时跟进' : '无逾期'}</div>
         </div>
         <div className="stat-card danger">
           <div className="label">⚠️ 异常观察</div>
@@ -303,6 +303,88 @@ export default function Statistics() {
                         ) : (
                           <span className="badge badge-yellow">待处理</span>
                         )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div className="card">
+          <div className="card-title">
+            <span>📦 逾期汇总：按批次</span>
+            <span className="badge badge-orange">{stats.overdue_by_batch.length} 个批次</span>
+          </div>
+          {stats.overdue_by_batch.length === 0 ? (
+            <div className="empty"><div className="empty-icon">🎉</div>所有批次均无逾期</div>
+          ) : (
+            <div className="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>批次编号</th>
+                    <th>批次名称</th>
+                    <th style={{ textAlign: 'center' }}>已发放</th>
+                    <th style={{ textAlign: 'center' }}>逾期数</th>
+                    <th style={{ textAlign: 'center' }}>逾期率</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stats.overdue_by_batch.map((b, i) => (
+                    <tr key={i} style={b.overdue_rate > 50 ? { background: '#fef2f2' } : b.overdue_rate > 20 ? { background: '#fff7ed' } : {}}>
+                      <td style={{ fontWeight: 600, fontFamily: 'monospace' }}>{b.batch_code}</td>
+                      <td>{b.batch_name || '-'}</td>
+                      <td style={{ textAlign: 'center' }}>{b.total_issued}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className={`badge ${b.overdue_count > 5 ? 'badge-red' : 'badge-orange'}`}>{b.overdue_count}</span>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className={`badge ${b.overdue_rate > 50 ? 'badge-red' : b.overdue_rate > 20 ? 'badge-orange' : 'badge-yellow'}`}>
+                          {b.overdue_rate}%
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div className="card">
+          <div className="card-title">
+            <span>👥 逾期汇总：按责任人</span>
+            <span className="badge badge-orange">{stats.overdue_by_person.length} 人</span>
+          </div>
+          {stats.overdue_by_person.length === 0 ? (
+            <div className="empty"><div className="empty-icon">🎉</div>所有责任人无逾期</div>
+          ) : (
+            <div className="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>责任人</th>
+                    <th>部门</th>
+                    <th style={{ textAlign: 'center' }}>已发放</th>
+                    <th style={{ textAlign: 'center' }}>逾期数</th>
+                    <th style={{ textAlign: 'center' }}>逾期率</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stats.overdue_by_person.map((p, i) => (
+                    <tr key={i} style={p.overdue_rate > 50 ? { background: '#fef2f2' } : p.overdue_rate > 20 ? { background: '#fff7ed' } : {}}>
+                      <td style={{ fontWeight: 600 }}>{p.person_name}</td>
+                      <td>{p.department || '-'}</td>
+                      <td style={{ textAlign: 'center' }}>{p.total_issued}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className={`badge ${p.overdue_count > 5 ? 'badge-red' : 'badge-orange'}`}>{p.overdue_count}</span>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className={`badge ${p.overdue_rate > 50 ? 'badge-red' : p.overdue_rate > 20 ? 'badge-orange' : 'badge-yellow'}`}>
+                          {p.overdue_rate}%
+                        </span>
                       </td>
                     </tr>
                   ))}

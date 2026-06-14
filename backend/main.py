@@ -240,6 +240,7 @@ def list_wristbands(
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
     abnormal_only: Optional[bool] = None,
+    overdue_only: Optional[bool] = None,
     search: Optional[str] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
@@ -260,6 +261,15 @@ def list_wristbands(
         query = query.filter(models.Wristband.status == status)
     if abnormal_only:
         query = query.filter(models.Wristband.abnormal_flag == True)
+    if overdue_only:
+        today = date.today()
+        query = query.filter(
+            and_(
+                models.Wristband.status == "已发放",
+                models.Wristband.expected_return_date.isnot(None),
+                models.Wristband.expected_return_date < today
+            )
+        )
     if search:
         query = query.filter(or_(
             models.Wristband.serial_number.contains(search),
@@ -274,6 +284,7 @@ def list_wristbands(
     total = query.count()
     items = query.order_by(models.Wristband.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
 
+    today = date.today()
     result = []
     for wb in items:
         resp = schemas.WristbandResponse.model_validate(wb)
@@ -284,6 +295,13 @@ def list_wristbands(
             resp.cabinet_code = wb.cabinet.code
         if wb.responsible_person:
             resp.responsible_person_name = wb.responsible_person.name
+        is_overdue = (
+            wb.status == "已发放"
+            and wb.expected_return_date is not None
+            and wb.expected_return_date < today
+        )
+        resp.is_overdue = is_overdue
+        resp.days_overdue = (today - wb.expected_return_date).days if is_overdue and wb.expected_return_date else 0
         result.append(resp)
 
     return {"total": total, "page": page, "page_size": page_size, "items": result}
@@ -480,6 +498,14 @@ def get_wristband(serial: str, db: Session = Depends(get_db), _=Depends(auth.get
         resp.cabinet_code = wb.cabinet.code
     if wb.responsible_person:
         resp.responsible_person_name = wb.responsible_person.name
+    today = date.today()
+    is_overdue = (
+        wb.status == "已发放"
+        and wb.expected_return_date is not None
+        and wb.expected_return_date < today
+    )
+    resp.is_overdue = is_overdue
+    resp.days_overdue = (today - wb.expected_return_date).days if is_overdue and wb.expected_return_date else 0
     return resp
 
 
@@ -532,12 +558,23 @@ def list_return_records(
 @app.get("/api/abnormal-records", response_model=List[schemas.AbnormalRecordResponse])
 def list_abnormal_records(
     handled: Optional[bool] = None,
+    overdue_only: Optional[bool] = None,
     db: Session = Depends(get_db),
     _=Depends(auth.get_current_user)
 ):
     query = db.query(models.AbnormalRecord)
     if handled is not None:
         query = query.filter(models.AbnormalRecord.handled == handled)
+    if overdue_only:
+        today = date.today()
+        overdue_wb_ids = db.query(models.Wristband.id).filter(
+            and_(
+                models.Wristband.status == "已发放",
+                models.Wristband.expected_return_date.isnot(None),
+                models.Wristband.expected_return_date < today
+            )
+        ).subquery()
+        query = query.filter(models.AbnormalRecord.wristband_id.in_(overdue_wb_ids))
     records = query.order_by(models.AbnormalRecord.reported_at.desc()).limit(200).all()
     result = []
     for r in records:
@@ -686,6 +723,64 @@ def get_statistics(db: Session = Depends(get_db), _=Depends(auth.get_current_use
             hours_pending=round(hours, 1)
         ))
 
+    overdue_by_batch = []
+    batch_rows = db.query(
+        models.Batch.id,
+        models.Batch.batch_code,
+        models.Batch.name,
+        func.count(models.Wristband.id).filter(models.Wristband.status == "已发放"),
+        func.count(models.Wristband.id).filter(
+            and_(
+                models.Wristband.status == "已发放",
+                models.Wristband.expected_return_date.isnot(None),
+                models.Wristband.expected_return_date < today
+            )
+        )
+    ).outerjoin(models.Wristband, models.Batch.id == models.Wristband.batch_id
+    ).group_by(models.Batch.id).all()
+    for b in batch_rows:
+        total_issued = b[3] or 0
+        overdue_cnt = b[4] or 0
+        if overdue_cnt > 0:
+            overdue_by_batch.append(schemas.OverdueByBatchItem(
+                batch_id=b[0],
+                batch_code=b[1],
+                batch_name=b[2],
+                total_issued=total_issued,
+                overdue_count=overdue_cnt,
+                overdue_rate=round(overdue_cnt / total_issued * 100, 2) if total_issued > 0 else 0
+            ))
+    overdue_by_batch.sort(key=lambda x: x.overdue_count, reverse=True)
+
+    overdue_by_person = []
+    person_rows = db.query(
+        models.ResponsiblePerson.id,
+        models.ResponsiblePerson.name,
+        models.ResponsiblePerson.department,
+        func.count(models.Wristband.id).filter(models.Wristband.status == "已发放"),
+        func.count(models.Wristband.id).filter(
+            and_(
+                models.Wristband.status == "已发放",
+                models.Wristband.expected_return_date.isnot(None),
+                models.Wristband.expected_return_date < today
+            )
+        )
+    ).outerjoin(models.Wristband, models.ResponsiblePerson.id == models.Wristband.responsible_person_id
+    ).group_by(models.ResponsiblePerson.id).all()
+    for p in person_rows:
+        total_issued = p[3] or 0
+        overdue_cnt = p[4] or 0
+        if overdue_cnt > 0:
+            overdue_by_person.append(schemas.OverdueByPersonItem(
+                person_id=p[0],
+                person_name=p[1],
+                department=p[2],
+                total_issued=total_issued,
+                overdue_count=overdue_cnt,
+                overdue_rate=round(overdue_cnt / total_issued * 100, 2) if total_issued > 0 else 0
+            ))
+    overdue_by_person.sort(key=lambda x: x.overdue_count, reverse=True)
+
     return schemas.StatisticsResponse(
         total_batches=total_batches,
         total_wristbands=total_wb,
@@ -695,6 +790,7 @@ def get_statistics(db: Session = Depends(get_db), _=Depends(auth.get_current_use
         returned=status_counts.get("已回收", 0),
         abnormal_observation=status_counts.get("异常观察", 0),
         disabled=status_counts.get("停用", 0),
+        overdue_count=overdue_return,
         color_distribution=color_distribution,
         recovery_timely_rate=recovery_timely_rate,
         recovery_rate_trend=recovery_trend,
@@ -702,5 +798,7 @@ def get_statistics(db: Session = Depends(get_db), _=Depends(auth.get_current_use
         pending_items=pending_items,
         high_frequency_missing=high_frequency_missing,
         recovery_lag=recovery_lag,
-        incomplete_abnormal=incomplete_abnormal
+        incomplete_abnormal=incomplete_abnormal,
+        overdue_by_batch=overdue_by_batch,
+        overdue_by_person=overdue_by_person
     )

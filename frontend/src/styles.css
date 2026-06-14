@@ -88,6 +88,7 @@
 .stat-card.danger { border-left-color: var(--danger); }
 .stat-card.info { border-left-color: var(--info); }
 .stat-card.purple { border-left-color: var(--purple); }
+.stat-card.orange { border-left-color: var(--orange); }
 
 .stat-card .label {
   font-size: 13px;
