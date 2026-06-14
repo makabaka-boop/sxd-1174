@@ -443,3 +443,20 @@ class TransferableWristbandResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class TimelineEvent(BaseModel):
+    event_type: str
+    event_time: datetime
+    operator_name: Optional[str] = None
+    cabinet_info: Optional[str] = None
+    responsible_person: Optional[str] = None
+    recipient_name: Optional[str] = None
+    recipient_phone: Optional[str] = None
+    remark: Optional[str] = None
+    extra_info: Optional[dict] = None
+
+
+class WristbandTimelineResponse(BaseModel):
+    wristband: WristbandResponse
+    timeline: List[TimelineEvent]

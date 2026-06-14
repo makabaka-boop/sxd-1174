@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { wristbandAPI, abnormalRecordAPI } from '../api.js';
 import { useToast } from '../context/ToastContext.jsx';
 import dayjs from 'dayjs';
+import WristbandTimeline from '../components/WristbandTimeline.jsx';
 
 const ABNORMAL_TYPES = [
   { value: '遗失', label: '遗失' },
@@ -27,6 +28,7 @@ export default function Abnormal() {
   const [reportForm, setReportForm] = useState({
     serial_number: '', abnormal_type: '遗失', description: '', missing_explanation: '',
   });
+  const [timelineSerial, setTimelineSerial] = useState(null);
 
   useEffect(() => {
     if (activeTab === 'list') loadRecords();
@@ -184,7 +186,12 @@ export default function Abnormal() {
                 )}
                 {wristbandInfo && !wristbandInfo.error && (
                   <div className="alert alert-info" style={{ marginTop: 10, padding: 10 }}>
-                    <div style={{ fontWeight: 600, marginBottom: 4 }}>🔍 手环信息</div>
+                    <div style={{ fontWeight: 600, marginBottom: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>🔍 手环信息</span>
+                      <button className="btn btn-sm btn-secondary" onClick={(e) => { e.preventDefault(); setTimelineSerial(wristbandInfo.serial_number); }}>
+                        📋 查看记录
+                      </button>
+                    </div>
                     <div style={{ fontSize: 13, lineHeight: 1.8 }}>
                       批次：<strong>{wristbandInfo.batch_code}</strong><br />
                       当前状态：{getStatusBadge(wristbandInfo.status)}
@@ -388,16 +395,21 @@ export default function Abnormal() {
                         </td>
                         <td style={{ maxWidth: 180, fontSize: 12 }}>{r.handling_result || '-'}</td>
                         <td>
-                          {!r.handled ? (
-                            <button className="btn btn-sm" onClick={() => handleProcess(r)}>
-                              处理闭环
+                          <div style={{ display: 'flex', gap: 6, flexDirection: 'column' }}>
+                            <button className="btn btn-sm btn-secondary" onClick={() => setTimelineSerial(r.serial_number)}>
+                              📋 查看记录
                             </button>
-                          ) : (
-                            <span style={{ fontSize: 12, color: 'var(--text-light)' }}>
-                              {r.handler_name}<br />
-                              {r.handled_at && dayjs(r.handled_at).format('MM-DD HH:mm')}
-                            </span>
-                          )}
+                            {!r.handled ? (
+                              <button className="btn btn-sm" onClick={() => handleProcess(r)}>
+                                处理闭环
+                              </button>
+                            ) : (
+                              <span style={{ fontSize: 12, color: 'var(--text-light)' }}>
+                                {r.handler_name}<br />
+                                {r.handled_at && dayjs(r.handled_at).format('MM-DD HH:mm')}
+                              </span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -407,6 +419,13 @@ export default function Abnormal() {
             )}
           </div>
         </>
+      )}
+
+      {timelineSerial && (
+        <WristbandTimeline
+          serialNumber={timelineSerial}
+          onClose={() => setTimelineSerial(null)}
+        />
       )}
     </div>
   );

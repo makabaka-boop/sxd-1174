@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { wristbandAPI, returnRecordAPI } from '../api.js';
 import { useToast } from '../context/ToastContext.jsx';
 import dayjs from 'dayjs';
+import WristbandTimeline from '../components/WristbandTimeline.jsx';
 
 export default function ReturnConfirm() {
   const { showToast } = useToast();
@@ -18,6 +19,7 @@ export default function ReturnConfirm() {
     remark: '',
     return_location: '',
   });
+  const [timelineSerial, setTimelineSerial] = useState(null);
 
   useEffect(() => {
     if (activeTab === 'confirm') loadPending();
@@ -147,8 +149,11 @@ export default function ReturnConfirm() {
                 )}
                 {wristbandInfo && !wristbandInfo.error && (
                   <div className={`alert ${canReturn ? 'alert-success' : 'alert-warning'}`} style={{ marginTop: 10, padding: 10 }}>
-                    <div style={{ marginBottom: 6, fontWeight: 600 }}>
-                      {canReturn ? '✅ 可以回收' : '⚠️ 不满足回收条件'}
+                    <div style={{ marginBottom: 6, fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>{canReturn ? '✅ 可以回收' : '⚠️ 不满足回收条件'}</span>
+                      <button className="btn btn-sm btn-secondary" onClick={(e) => { e.preventDefault(); setTimelineSerial(wristbandInfo.serial_number); }}>
+                        📋 查看记录
+                      </button>
                     </div>
                     <div style={{ fontSize: 13, lineHeight: 1.8 }}>
                       批次：<strong>{wristbandInfo.batch_code}</strong><br />
@@ -293,9 +298,14 @@ export default function ReturnConfirm() {
                       <td>{dayjs(r.returned_at).format('YYYY-MM-DD HH:mm')}</td>
                       <td style={{ fontSize: 12, color: 'var(--text-light)' }}>{r.remark || '-'}</td>
                       <td>
-                        <button className="btn btn-sm btn-success" onClick={() => handleConfirm(r)}>
-                          ✅ 确认回收
-                        </button>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button className="btn btn-sm btn-secondary" onClick={() => setTimelineSerial(r.serial_number)}>
+                            📋 记录
+                          </button>
+                          <button className="btn btn-sm btn-success" onClick={() => handleConfirm(r)}>
+                            ✅ 确认回收
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -304,6 +314,13 @@ export default function ReturnConfirm() {
             </div>
           )}
         </div>
+      )}
+
+      {timelineSerial && (
+        <WristbandTimeline
+          serialNumber={timelineSerial}
+          onClose={() => setTimelineSerial(null)}
+        />
       )}
     </div>
   );

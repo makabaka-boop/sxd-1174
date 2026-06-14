@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { statsAPI } from '../api.js';
 import dayjs from 'dayjs';
+import WristbandTimeline from '../components/WristbandTimeline.jsx';
 
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
+  const [timelineSerial, setTimelineSerial] = useState(null);
 
   useEffect(() => {
     loadStats();
@@ -88,6 +90,7 @@ export default function Dashboard() {
                     <th>领取人</th>
                     <th>应归还日期</th>
                     <th style={{ textAlign: 'center' }}>逾期天数</th>
+                    <th>操作</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -100,6 +103,11 @@ export default function Dashboard() {
                         <span className={`badge ${r.days_overdue > 7 ? 'badge-red' : 'badge-orange'}`}>
                           {r.days_overdue} 天
                         </span>
+                      </td>
+                      <td>
+                        <button className="btn btn-sm btn-secondary" onClick={() => setTimelineSerial(r.serial_number)}>
+                          📋 记录
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -173,10 +181,11 @@ export default function Dashboard() {
             <table>
               <thead>
                 <tr>
-                  <th>手环编号</th>
-                  <th>异常类型</th>
-                  <th style={{ textAlign: 'center' }}>等待(小时)</th>
-                </tr>
+                    <th>手环编号</th>
+                    <th>异常类型</th>
+                    <th style={{ textAlign: 'center' }}>等待(小时)</th>
+                    <th>操作</th>
+                  </tr>
               </thead>
               <tbody>
                 {stats.incomplete_abnormal.slice(0, 6).map((r, i) => (
@@ -186,16 +195,28 @@ export default function Dashboard() {
                     <td style={{ textAlign: 'center' }}>
                       <span className={`badge ${r.hours_pending > 24 ? 'badge-red' : 'badge-yellow'}`}>{r.hours_pending}h</span>
                     </td>
+                    <td>
+                      <button className="btn btn-sm btn-secondary" onClick={() => setTimelineSerial(r.serial_number)}>
+                        📋 记录
+                      </button>
+                    </td>
                   </tr>
                 ))}
                 {stats.incomplete_abnormal.length === 0 && (
-                  <tr><td colSpan="3" className="empty">🎉 所有异常已闭环</td></tr>
+                  <tr><td colSpan="4" className="empty">🎉 所有异常已闭环</td></tr>
                 )}
               </tbody>
             </table>
           </div>
         </div>
       </div>
+
+      {timelineSerial && (
+        <WristbandTimeline
+          serialNumber={timelineSerial}
+          onClose={() => setTimelineSerial(null)}
+        />
+      )}
     </div>
   );
 }

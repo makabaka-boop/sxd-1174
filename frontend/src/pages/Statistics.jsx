@@ -5,10 +5,12 @@ import {
   CartesianGrid, Tooltip, Legend, LineChart, Line, RadarChart, PolarGrid,
   PolarAngleAxis, PolarRadiusAxis, Radar
 } from 'recharts';
+import WristbandTimeline from '../components/WristbandTimeline.jsx';
 
 export default function Statistics() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [timelineSerial, setTimelineSerial] = useState(null);
 
   useEffect(() => {
     loadStats();
@@ -242,6 +244,7 @@ export default function Statistics() {
                     <th>领取人</th>
                     <th>应归还日期</th>
                     <th style={{ textAlign: 'center' }}>逾期天数</th>
+                    <th>操作</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -254,6 +257,11 @@ export default function Statistics() {
                         <span className={`badge ${r.days_overdue > 7 ? 'badge-red' : 'badge-orange'}`}>
                           {r.days_overdue} 天
                         </span>
+                      </td>
+                      <td>
+                        <button className="btn btn-sm btn-secondary" onClick={() => setTimelineSerial(r.serial_number)}>
+                          📋 记录
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -281,6 +289,7 @@ export default function Statistics() {
                     <th>上报时间</th>
                     <th style={{ textAlign: 'center' }}>等待时长</th>
                     <th>状态</th>
+                    <th>操作</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -303,6 +312,11 @@ export default function Statistics() {
                         ) : (
                           <span className="badge badge-yellow">待处理</span>
                         )}
+                      </td>
+                      <td>
+                        <button className="btn btn-sm btn-secondary" onClick={() => setTimelineSerial(r.serial_number)}>
+                          📋 记录
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -394,6 +408,13 @@ export default function Statistics() {
           )}
         </div>
       </div>
+
+      {timelineSerial && (
+        <WristbandTimeline
+          serialNumber={timelineSerial}
+          onClose={() => setTimelineSerial(null)}
+        />
+      )}
     </div>
   );
 }

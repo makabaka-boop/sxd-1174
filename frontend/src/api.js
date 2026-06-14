@@ -63,6 +63,7 @@ export const batchAPI = {
 export const wristbandAPI = {
   list: (params) => api.get('/wristbands', { params }),
   get: (serial) => api.get(`/wristbands/${serial}`),
+  getTimeline: (serial) => api.get(`/wristbands/${serial}/timeline`),
   import: (data) => api.post('/wristbands/import', data),
   issue: (data) => api.post('/wristbands/issue', data),
   return: (data) => api.post('/wristbands/return', data),

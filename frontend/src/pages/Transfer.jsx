@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { transferAPI, batchAPI, colorRuleAPI, cabinetAPI, personAPI } from '../api.js';
 import { useToast } from '../context/ToastContext.jsx';
 import dayjs from 'dayjs';
+import WristbandTimeline from '../components/WristbandTimeline.jsx';
 
 export default function Transfer() {
   const [activeTab, setActiveTab] = useState('records');
@@ -37,6 +38,7 @@ export default function Transfer() {
     transfer_reason: '',
     remark: ''
   });
+  const [timelineSerial, setTimelineSerial] = useState(null);
 
   const { showToast } = useToast();
 
@@ -314,15 +316,17 @@ export default function Transfer() {
                         )}
                       </td>
                       <td>
-                        {t.status === '待确认' && (
-                          <div style={{ display: 'flex', gap: 6 }}>
-                            <button className="btn btn-sm btn-success" onClick={() => handleConfirmTransfer(t.id)}>确认</button>
-                            <button className="btn btn-sm btn-secondary" onClick={() => handleCancelTransfer(t.id)}>取消</button>
-                          </div>
-                        )}
-                        {t.status !== '待确认' && (
-                          <span style={{ color: 'var(--text-light)', fontSize: 12 }}>-</span>
-                        )}
+                        <div style={{ display: 'flex', gap: 6, flexDirection: 'column' }}>
+                          <button className="btn btn-sm btn-secondary" onClick={() => setTimelineSerial(t.serial_number)}>
+                            📋 记录
+                          </button>
+                          {t.status === '待确认' && (
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <button className="btn btn-sm btn-success" onClick={() => handleConfirmTransfer(t.id)}>确认</button>
+                              <button className="btn btn-sm btn-secondary" onClick={() => handleCancelTransfer(t.id)}>取消</button>
+                            </div>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -415,6 +419,7 @@ export default function Transfer() {
                     <th>当前柜位</th>
                     <th>负责人</th>
                     <th>状态</th>
+                    <th>操作</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -441,10 +446,15 @@ export default function Transfer() {
                       <td>
                         <span className="badge status-待发放">待发放</span>
                       </td>
+                      <td>
+                        <button className="btn btn-sm btn-secondary" onClick={(e) => { e.stopPropagation(); setTimelineSerial(w.serial_number); }}>
+                          📋 记录
+                        </button>
+                      </td>
                     </tr>
                   ))}
                   {transferableWristbands.length === 0 && (
-                    <tr><td colSpan="7" className="empty"><div className="empty-icon">🎟️</div>暂无可调拨的手环（仅显示"待发放"状态）</td></tr>
+                    <tr><td colSpan="8" className="empty"><div className="empty-icon">🎟️</div>暂无可调拨的手环（仅显示"待发放"状态）</td></tr>
                   )}
                 </tbody>
               </table>
@@ -504,6 +514,13 @@ export default function Transfer() {
             </form>
           </div>
         </div>
+      )}
+
+      {timelineSerial && (
+        <WristbandTimeline
+          serialNumber={timelineSerial}
+          onClose={() => setTimelineSerial(null)}
+        />
       )}
     </div>
   );

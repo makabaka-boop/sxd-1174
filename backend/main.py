@@ -1039,3 +1039,128 @@ def cancel_transfer(
 
     db.commit()
     return {"message": "调拨已取消", "status": transfer.status}
+
+
+@app.get("/api/wristbands/{serial}/timeline", response_model=schemas.WristbandTimelineResponse)
+def get_wristband_timeline(serial: str, db: Session = Depends(get_db), _=Depends(auth.get_current_user)):
+    wb = db.query(models.Wristband).filter(models.Wristband.serial_number == serial).first()
+    if not wb:
+        raise HTTPException(status_code=404, detail="手环不存在")
+
+    resp = schemas.WristbandResponse.model_validate(wb)
+    if wb.batch:
+        resp.batch_code = wb.batch.batch_code
+        resp.batch_name = wb.batch.name
+    if wb.cabinet:
+        resp.cabinet_code = wb.cabinet.code
+    if wb.responsible_person:
+        resp.responsible_person_name = wb.responsible_person.name
+    today = date.today()
+    is_overdue = _is_overdue(wb, today)
+    resp.is_overdue = is_overdue
+    resp.days_overdue = (today - wb.expected_return_date).days if is_overdue and wb.expected_return_date else 0
+
+    timeline = []
+
+    timeline.append(schemas.TimelineEvent(
+        event_type="导入",
+        event_time=wb.created_at,
+        operator_name="系统导入",
+        cabinet_info=wb.cabinet.code if wb.cabinet else None,
+        responsible_person=wb.responsible_person.name if wb.responsible_person else None,
+        remark=f"批次：{wb.batch.batch_code if wb.batch else '-'}"
+    ))
+
+    for issue in wb.issue_records:
+        timeline.append(schemas.TimelineEvent(
+            event_type="发放",
+            event_time=issue.issued_at,
+            operator_name=issue.issue_person_name,
+            recipient_name=issue.recipient_name,
+            recipient_phone=issue.recipient_phone,
+            cabinet_info=wb.cabinet.code if wb.cabinet else None,
+            responsible_person=wb.responsible_person.name if wb.responsible_person else None,
+            remark=issue.remark,
+            extra_info={
+                "issue_location": issue.issue_location,
+                "expected_return_date": str(issue.expected_return_date) if issue.expected_return_date else None
+            }
+        ))
+
+    for ret in wb.return_records:
+        timeline.append(schemas.TimelineEvent(
+            event_type="归还提交",
+            event_time=ret.returned_at,
+            operator_name=ret.return_person_name,
+            cabinet_info=wb.cabinet.code if wb.cabinet else None,
+            responsible_person=wb.responsible_person.name if wb.responsible_person else None,
+            remark=f"状况：{ret.condition}；{ret.remark or ''}".strip("；"),
+            extra_info={
+                "return_location": ret.return_location,
+                "condition": ret.condition
+            }
+        ))
+        if ret.confirmed and ret.confirmed_at:
+            timeline.append(schemas.TimelineEvent(
+                event_type="归还确认",
+                event_time=ret.confirmed_at,
+                operator_name=ret.confirmed_by,
+                cabinet_info=wb.cabinet.code if wb.cabinet else None,
+                responsible_person=wb.responsible_person.name if wb.responsible_person else None,
+                remark=ret.remark
+            ))
+
+    for abnormal in wb.abnormal_records:
+        timeline.append(schemas.TimelineEvent(
+            event_type="异常上报",
+            event_time=abnormal.reported_at,
+            operator_name=abnormal.reporter_name,
+            cabinet_info=wb.cabinet.code if wb.cabinet else None,
+            responsible_person=wb.responsible_person.name if wb.responsible_person else None,
+            remark=f"类型：{abnormal.abnormal_type}；{abnormal.description or ''}".strip("；"),
+            extra_info={
+                "abnormal_type": abnormal.abnormal_type,
+                "description": abnormal.description,
+                "missing_explanation": abnormal.missing_explanation
+            }
+        ))
+        if abnormal.handled and abnormal.handled_at:
+            timeline.append(schemas.TimelineEvent(
+                event_type="异常处理",
+                event_time=abnormal.handled_at,
+                operator_name=abnormal.handler_name,
+                cabinet_info=wb.cabinet.code if wb.cabinet else None,
+                responsible_person=wb.responsible_person.name if wb.responsible_person else None,
+                remark=abnormal.handling_result
+            ))
+
+    for transfer in wb.transfer_records:
+        timeline.append(schemas.TimelineEvent(
+            event_type="调拨创建",
+            event_time=transfer.created_at,
+            operator_name=transfer.creator_name,
+            cabinet_info=f"{transfer.from_cabinet.code if transfer.from_cabinet else '-'} → {transfer.to_cabinet.code if transfer.to_cabinet else '-'}",
+            responsible_person=f"{transfer.from_responsible_person.name if transfer.from_responsible_person else '-'} → {transfer.to_responsible_person.name if transfer.to_responsible_person else '-'}",
+            remark=transfer.transfer_reason or transfer.remark or "",
+            extra_info={
+                "transfer_code": transfer.transfer_code,
+                "status": transfer.status
+            }
+        ))
+        if transfer.status in ["已确认", "已取消"] and transfer.confirmed_at:
+            event_type = "调拨确认" if transfer.status == "已确认" else "调拨取消"
+            timeline.append(schemas.TimelineEvent(
+                event_type=event_type,
+                event_time=transfer.confirmed_at,
+                operator_name=transfer.confirmer_name,
+                cabinet_info=transfer.to_cabinet.code if transfer.to_cabinet else None,
+                responsible_person=transfer.to_responsible_person.name if transfer.to_responsible_person else None,
+                remark=transfer.remark
+            ))
+
+    timeline.sort(key=lambda e: e.event_time)
+
+    return schemas.WristbandTimelineResponse(
+        wristband=resp,
+        timeline=timeline
+    )

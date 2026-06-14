@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { batchAPI, colorRuleAPI, cabinetAPI, personAPI, wristbandAPI } from '../api.js';
 import { useToast } from '../context/ToastContext.jsx';
 import dayjs from 'dayjs';
+import WristbandTimeline from '../components/WristbandTimeline.jsx';
 
 export default function Batches() {
   const [batches, setBatches] = useState([]);
@@ -31,6 +32,7 @@ export default function Batches() {
     start_serial: '', count: 100, color: '', cabinet_id: '',
     responsible_person_id: '', expected_return_date: ''
   });
+  const [timelineSerial, setTimelineSerial] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -288,6 +290,7 @@ export default function Batches() {
                     <th>责任人</th>
                     <th>发放时间</th>
                     <th>预计归还</th>
+                    <th>操作</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -316,10 +319,15 @@ export default function Batches() {
                       <td>{w.responsible_person_name || '-'}</td>
                       <td>{w.issued_at ? dayjs(w.issued_at).format('MM-DD HH:mm') : '-'}</td>
                       <td>{w.expected_return_date || '-'}</td>
+                      <td>
+                        <button className="btn btn-sm btn-secondary" onClick={() => setTimelineSerial(w.serial_number)}>
+                          📋 查看记录
+                        </button>
+                      </td>
                     </tr>
                   ))}
                   {wristbands.length === 0 && (
-                    <tr><td colSpan="10" className="empty"><div className="empty-icon">🎟️</div>暂无手环数据</td></tr>
+                    <tr><td colSpan="11" className="empty"><div className="empty-icon">🎟️</div>暂无手环数据</td></tr>
                   )}
                 </tbody>
               </table>
@@ -465,6 +473,13 @@ export default function Batches() {
             </form>
           </div>
         </div>
+      )}
+
+      {timelineSerial && (
+        <WristbandTimeline
+          serialNumber={timelineSerial}
+          onClose={() => setTimelineSerial(null)}
+        />
       )}
     </div>
   );

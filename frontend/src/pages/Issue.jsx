@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { wristbandAPI, batchAPI, colorRuleAPI, issueRecordAPI } from '../api.js';
 import { useToast } from '../context/ToastContext.jsx';
 import dayjs from 'dayjs';
+import WristbandTimeline from '../components/WristbandTimeline.jsx';
 
 export default function Issue() {
   const { showToast } = useToast();
@@ -26,6 +27,7 @@ export default function Issue() {
   const [filterBatch, setFilterBatch] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [timelineSerial, setTimelineSerial] = useState(null);
 
   useEffect(() => {
     loadSelectData();
@@ -148,8 +150,11 @@ export default function Issue() {
                 )}
                 {wristbandInfo && !wristbandInfo.error && (
                   <div className={`alert ${canIssue ? 'alert-success' : 'alert-warning'}`} style={{ marginTop: 10, padding: 10 }}>
-                    <div style={{ marginBottom: 6, fontWeight: 600 }}>
-                      {canIssue ? '✅ 校验通过，可以发放' : '⚠️ 校验不通过'}
+                    <div style={{ marginBottom: 6, fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>{canIssue ? '✅ 校验通过，可以发放' : '⚠️ 校验不通过'}</span>
+                      <button className="btn btn-sm btn-secondary" onClick={(e) => { e.preventDefault(); setTimelineSerial(wristbandInfo.serial_number); }}>
+                        📋 查看记录
+                      </button>
                     </div>
                     <div style={{ fontSize: 13, lineHeight: 1.8 }}>
                       批次：<strong>{wristbandInfo.batch_code}</strong> {wristbandInfo.batch_name && `(${wristbandInfo.batch_name})`}<br />
@@ -305,6 +310,13 @@ export default function Issue() {
             </div>
           </div>
         </>
+      )}
+
+      {timelineSerial && (
+        <WristbandTimeline
+          serialNumber={timelineSerial}
+          onClose={() => setTimelineSerial(null)}
+        />
       )}
     </div>
   );
