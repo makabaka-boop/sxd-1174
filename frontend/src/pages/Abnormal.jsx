@@ -349,6 +349,7 @@ export default function Abnormal() {
                       <th>异常类型</th>
                       <th>描述</th>
                       <th>缺失说明</th>
+                      <th>逾期状态</th>
                       <th>上报人</th>
                       <th>上报时间</th>
                       <th>处理状态</th>
@@ -364,6 +365,15 @@ export default function Abnormal() {
                         <td style={{ maxWidth: 200, fontSize: 13 }}>{r.description}</td>
                         <td style={{ maxWidth: 180, fontSize: 12, color: 'var(--text-light)' }}>
                           {r.missing_explanation || '-'}
+                        </td>
+                        <td>
+                          {r.is_overdue ? (
+                            <span className={`badge ${r.days_overdue > 7 ? 'badge-red' : 'badge-orange'}`}>
+                              逾期{r.days_overdue}天
+                            </span>
+                          ) : (
+                            <span style={{ color: 'var(--text-light)', fontSize: 12 }}>-</span>
+                          )}
                         </td>
                         <td>{r.reporter_name || '-'}</td>
                         <td style={{ whiteSpace: 'nowrap' }}>{dayjs(r.reported_at).format('MM-DD HH:mm')}</td>

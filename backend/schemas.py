@@ -265,6 +265,8 @@ class AbnormalRecordResponse(BaseModel):
     handler_name: Optional[str]
     handled_at: Optional[datetime]
     handling_result: Optional[str]
+    is_overdue: bool = False
+    days_overdue: int = 0
 
     class Config:
         from_attributes = True
