@@ -913,6 +913,8 @@ def create_transfer(
             seq = 1
 
     created_count = 0
+    skipped_pending = 0
+    skipped_same = 0
     for wb_id in data.wristband_ids:
         wb = db.query(models.Wristband).filter(models.Wristband.id == wb_id).first()
         if not wb:
@@ -920,6 +922,15 @@ def create_transfer(
         if wb.status != "待发放":
             continue
         if wb.cabinet_id == data.to_cabinet_id and wb.responsible_person_id == data.to_responsible_person_id:
+            skipped_same += 1
+            continue
+
+        pending = db.query(models.WristbandTransfer).filter(
+            models.WristbandTransfer.wristband_id == wb.id,
+            models.WristbandTransfer.status == "待确认"
+        ).first()
+        if pending:
+            skipped_pending += 1
             continue
 
         transfer_code = f"{prefix}{seq:04d}"
@@ -944,7 +955,12 @@ def create_transfer(
         created_count += 1
 
     db.commit()
-    return {"message": f"已创建 {created_count} 条调拨记录", "created": created_count}
+    msg_parts = [f"已创建 {created_count} 条调拨记录"]
+    if skipped_pending:
+        msg_parts.append(f"{skipped_pending} 条已有待确认调拨单已跳过")
+    if skipped_same:
+        msg_parts.append(f"{skipped_same} 条目标与当前相同已跳过")
+    return {"message": "，".join(msg_parts), "created": created_count, "skipped_pending": skipped_pending, "skipped_same": skipped_same}
 
 
 @app.post("/api/transfers/{transfer_id}/confirm")
@@ -967,7 +983,28 @@ def confirm_transfer(
     if wb.status != "待发放":
         raise HTTPException(status_code=400, detail=f"手环当前状态为「{wb.status}」，无法调拨")
 
+    if wb.cabinet_id != transfer.from_cabinet_id or wb.responsible_person_id != transfer.from_responsible_person_id:
+        raise HTTPException(status_code=400, detail="手环当前柜位/负责人与调拨单记录不一致，可能已被其他调拨更新，请刷新后重试")
+
     now = datetime.utcnow()
+
+    other_pending = db.query(models.WristbandTransfer).filter(
+        models.WristbandTransfer.wristband_id == transfer.wristband_id,
+        models.WristbandTransfer.status == "待确认",
+        models.WristbandTransfer.id != transfer_id
+    ).all()
+    canceled_count = 0
+    for ot in other_pending:
+        ot.status = "已取消"
+        ot.confirmer_id = current_user.id
+        ot.confirmer_name = current_user.full_name or current_user.username
+        ot.confirmed_at = now
+        if ot.remark:
+            ot.remark = f"{ot.remark}\n[系统取消：另一调拨单已确认]"
+        else:
+            ot.remark = "[系统取消：另一调拨单已确认]"
+        canceled_count += 1
+
     transfer.status = "已确认"
     transfer.confirmer_id = current_user.id
     transfer.confirmer_name = current_user.full_name or current_user.username
@@ -977,7 +1014,10 @@ def confirm_transfer(
     wb.responsible_person_id = transfer.to_responsible_person_id
 
     db.commit()
-    return {"message": "调拨确认成功", "status": transfer.status}
+    msg = "调拨确认成功"
+    if canceled_count:
+        msg += f"，同时取消了该手环的其他 {canceled_count} 条待确认调拨单"
+    return {"message": msg, "status": transfer.status, "canceled_others": canceled_count}
 
 
 @app.post("/api/transfers/{transfer_id}/cancel")

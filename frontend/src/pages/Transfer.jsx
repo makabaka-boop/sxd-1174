@@ -87,7 +87,17 @@ export default function Transfer() {
         if (params[k] === '' || params[k] == null) delete params[k];
       });
       const res = await transferAPI.listTransferable(params);
-      setTransferableWristbands(res.data);
+      const items = res.data;
+      setTransferableWristbands(items);
+      const visibleIds = new Set(items.map(w => w.id));
+      setSelectedWristbandIds(prev => {
+        const filtered = prev.filter(id => visibleIds.has(id));
+        if (filtered.length !== prev.length) {
+          const removedCount = prev.length - filtered.length;
+          showToast(`筛选条件变更，已自动移除 ${removedCount} 个不在当前列表中的已选手环`, 'info');
+        }
+        return filtered;
+      });
     } catch (e) {
       console.error(e);
     }
